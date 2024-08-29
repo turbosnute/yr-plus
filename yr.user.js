@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YR.no - Hotkeys
 // @namespace    https://github.com/turbosnute/
-// @version      1.3.6
+// @version      1.3.8
 // @description  Navigate the yr.no navbar using `Ctrl` + `←`/`→`. Navigate to 21-day forecast, radar map or daily table view using `Alt` + `L`, `Alt` + `R` or `Alt` + `V`. Show a menu to navigate through favorite locations with `Ctrl` + `Shift` + `F`.
 // @author       Øyvind Nilsen (on@ntnu.no)
 // @match        https://www.yr.no/*
