@@ -1,5 +1,10 @@
 # Yr Plus
-TamperMonkey script the enhance yr.no
+TamperMonkey script the enhance yr.no.
+
+## Prerequisites
+- [TamperMonkey](https://www.tampermonkey.net/) - You need to install the TamperMonkey extension in your browser.
+## Install
+[![](https://img.shields.io/badge/yr.user.js-Latest-green.svg)](https://raw.githubusercontent.com/turbosnute/yr-plus/main/yr.user.js)
 
 ## Hotkeys
 - `Ctrl` + `←` Navigate the yr.no navbar to the left.
