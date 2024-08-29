@@ -1,5 +1,5 @@
 # Yr Plus
-TamperMonkey script the enhance yr.no.
+TamperMonkey script to enhance yr.no.
 
 ## Prerequisites
 - [TamperMonkey](https://www.tampermonkey.net/) - You need to install the TamperMonkey extension in your browser.
