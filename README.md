@@ -1,6 +1,10 @@
 # Yr Plus
 TamperMonkey script to enhance yr.no.
 
+![alt text](yr-favorites.gif)
+
+![alt text](yr-rightleft.gif)
+
 ## Prerequisites
 - [TamperMonkey](https://www.tampermonkey.net/) - You need to install the TamperMonkey extension in your browser.
 ## Install
