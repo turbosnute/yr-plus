@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         YR.no - Hotkeys
+// @name         YR.no - Yr  Plus
 // @namespace    https://github.com/turbosnute/
-// @version      1.3.8
+// @version      1.3.9
 // @description  Navigate the yr.no navbar using `Ctrl` + `←`/`→`. Navigate to 21-day forecast, radar map or daily table view using `Alt` + `L`, `Alt` + `R` or `Alt` + `V`. Show a menu to navigate through favorite locations with `Ctrl` + `Shift` + `F`.
 // @author       Øyvind Nilsen (on@ntnu.no)
 // @match        https://www.yr.no/*
@@ -105,32 +105,6 @@
     // Variables to keep track of the selected index
     let selectedIndex = 0;
 
-    // Event listener for keydown events
-    document.addEventListener('keydown', function(event) {
-        if (event.ctrlKey && event.shiftKey && event.key === 'F') {
-            showMenu();
-        } else if (menu.style.display === 'block') {
-            const items = menu.querySelectorAll('li');
-            if (event.key === 'Escape') {
-                hideMenu();
-            } else if (event.key === 'ArrowUp') {
-                event.preventDefault(); // Prevent default scrolling behavior
-                selectedIndex = (selectedIndex > 0) ? selectedIndex - 1 : items.length - 1;
-                highlightSelected();
-            } else if (event.key === 'ArrowDown') {
-                event.preventDefault(); // Prevent default scrolling behavior
-                selectedIndex = (selectedIndex < items.length - 1) ? selectedIndex + 1 : 0;
-                highlightSelected();
-            } else if (event.key === 'Enter') {
-                event.preventDefault(); // Prevent default scrolling behavior
-                const selectedItem = items[selectedIndex];
-                const locationId = selectedItem.getAttribute('data-id');
-                var tablePath = translations['daily-table'][lang_code];
-                window.location.href = `https://www.yr.no/${lang_code}/${tablePath}/${locationId}/`;
-            }
-        }
-    });
-
     // Function to navigate to the next or previous menu item
     function navigateNavbar(direction) {
         const navbar = document.querySelector('#location-header__list');
@@ -154,36 +128,59 @@
         }
     }
 
-    // Add event listener for keydown events
-    document.addEventListener('keydown', function(event) {
-        if (event.ctrlKey && event.key === 'ArrowLeft') {
-            navigateNavbar('left');
-        } else if (event.ctrlKey && event.key === 'ArrowRight') {
-            navigateNavbar('right');
-        } else if ((event.altKey || event.metaKey) && (event.key === 'l' || event.key === 'r' || event.key === 'v')) {
-            // Get the current URL
-            const url = window.location.href;
-            const pattern = /https:\/\/(?:www\.)?yr\.no\/([a-z]{2,3})\/(.+)\/([0-9-]+)\//;
-            const match = url.match(pattern);
-            var view = '';
+       // Add event listener for keydown events
+       document.addEventListener('keydown', function(event) {
+        if (event.ctrlKey) {
+            if (event.key === 'ArrowLeft') {
+                navigateNavbar('left');
+            } else if (event.key === 'ArrowRight') {
+                navigateNavbar('right');
+            } else if (event.shiftKey && event.key === 'F') {
+                showMenu();
+            } else if ((event.shiftKey) && (event.key === 'L' || event.key === 'R' || event.key === 'V')) {
+                // Get the current URL
+                const url = window.location.href;
+                const pattern = /https:\/\/(?:www\.)?yr\.no\/([a-z]{2,3})\/(.+)\/([0-9-]+)\//;
+                const match = url.match(pattern);
+                var view = '';
 
-            if (match) {
-                console.log("Language code:", lang_code);
-                console.log("Path:", match[2]);
-                console.log("ID:", match[3]);
+                if (match) {
+                    console.log("Language code:", lang_code);
+                    console.log("Path:", match[2]);
+                    console.log("ID:", match[3]);
 
-                if (event.key === 'l') {
-                    view = translations['21-day-forecast'][lang_code];
-                } else if (event.key === 'r') {
-                    view = translations['radar'][lang_code];
-                } else if (event.key === 'v') {
-                    view = translations['daily-table'][lang_code];
+                    if (event.key === 'L') {
+                        view = translations['21-day-forecast'][lang_code];
+                    } else if (event.key === 'R') {
+                        view = translations['radar'][lang_code];
+                    } else if (event.key === 'V') {
+                        view = translations['daily-table'][lang_code];
+                    }
+
+                    if (view) {
+                        const newUrl = `https://www.yr.no/${lang_code}/${view}/${match[3]}/`;
+                        window.location.href = newUrl;
+                    }
                 }
-
-                if (view) {
-                    const newUrl = `https://www.yr.no/${lang_code}/${view}/${match[3]}/`;
-                    window.location.href = newUrl;
-                }
+            }
+        } else if (menu.style.display === 'block') {
+            const items = menu.querySelectorAll('li');
+            if (event.key === 'Escape') {
+                hideMenu();
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault(); // Prevent default scrolling behavior
+                selectedIndex = (selectedIndex > 0) ? selectedIndex - 1 : items.length - 1;
+                highlightSelected();
+            } else if (event.key === 'ArrowDown') {
+                event.preventDefault(); // Prevent default scrolling behavior
+                selectedIndex = (selectedIndex < items.length - 1) ? selectedIndex + 1 : 0;
+                highlightSelected();
+            } else if (event.key === 'Enter') {
+                event.preventDefault(); // Prevent default scrolling behavior
+                const selectedItem = items[selectedIndex];
+                const locationId = selectedItem.getAttribute('data-id');
+                var tablePath = translations['daily-table'][lang_code];
+                window.location.href = `https://www.yr.no/${lang_code}/${tablePath}/${locationId}/`;
             }
         }
     });
