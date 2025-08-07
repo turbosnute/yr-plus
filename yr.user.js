@@ -1,11 +1,12 @@
 // ==UserScript==
-// @name         YR.no - Yr  Plus
+// @name         YR.no - Yr Plus
 // @namespace    https://github.com/turbosnute/
-// @version      1.5.2
+// @version      1.5.3
 // @description  Navigate the yr.no navbar using `Ctrl` + `←`/`→`. Navigate to 21-day forecast, radar map or daily table view using `Ctrl` + `Shift` + `L`, `Ctrl` + `Shift` + `R` or `Ctrl` + `Shift`` + `V`. Show a menu to navigate through favorite locations with `Ctrl` + `Shift` + `F`. Search for new locations in the menu.
 // @author       Øyvind Nilsen (on@ntnu.no)
 // @match        https://www.yr.no/*
 // @grant        none
+// @run-at       document-end
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=yr.no
 // @updateURL    https://raw.githubusercontent.com/turbosnute/yr-plus/main/yr.user.js
 // @downloadURL  https://raw.githubusercontent.com/turbosnute/yr-plus/main/yr.user.js
@@ -123,7 +124,8 @@
                     
                     const apiData = {
                         favorites: userData.user?.locations?.favorites || [],
-                        visited: userData.user?.locations?.visited || []
+                        visited: userData.user?.locations?.visited || [],
+                        username: parsed.sessionData.user?.name || ''
                     };
                     
                     //console.log('[YR+] Parsed API locations:', apiData);
@@ -142,7 +144,8 @@
         // Fallback to localStorage for non-logged in users or if API fails
         const localData = {
             favorites: JSON.parse(localStorage.getItem('favouritedLocations') || '[]'),
-            visited: JSON.parse(localStorage.getItem('visitedLocations') || '[]')
+            visited: JSON.parse(localStorage.getItem('visitedLocations') || '[]'),
+            username: ''
         };
         
         //console.log('[YR+] Using localStorage data:', localData);
@@ -234,7 +237,9 @@
         const locationData = await getLocationsFromStorage();
         //console.log('[YR+] Location data retrieved:', locationData);
         
-        const { favorites, visited } = locationData;
+        const { favorites, visited, username } = locationData;
+
+        const user_label = username ? ` (${username})` : ''; 
 
         // Combine the two arrays and remove duplicates
         let combinedLocations = [...new Set([...favorites, ...visited])];
@@ -266,7 +271,8 @@
                 const validLocations = locations.filter(location => location !== null);
                 //console.log('[YR+] Valid locations retrieved:', validLocations);
                 
-                locationsContainer.innerHTML = '<h3 class="header-3 heading--color-primary" style="margin-top: 0; margin-bottom: 10px;">' + translations['myPlaces'][lang_code] + '</h3><ul style="list-style: none; padding: 0; margin: 0;">' + validLocations.map((location, index) => `
+
+                locationsContainer.innerHTML = '<h3 class="header-3 heading--color-primary" style="margin-top: 0; margin-bottom: 10px;">' + translations['myPlaces'][lang_code] + user_label + '</h3><ul style="list-style: none; padding: 0; margin: 0;">' + validLocations.map((location, index) => `
                     <li data-id="${location.id}" data-index="${index}" style="padding: 8px 12px; cursor: pointer; border-radius: 4px;">
                         <span class="header-4 heading--color-primary weather-location-list-item__location-heading">${favorites.includes(location.id) ? '⭐' : '🕛'} ${location.name}</span>
                     </li>`).join('') + '</ul>';
