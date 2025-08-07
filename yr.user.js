@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YR.no - Yr  Plus
 // @namespace    https://github.com/turbosnute/
-// @version      1.4.4
+// @version      1.5.2
 // @description  Navigate the yr.no navbar using `Ctrl` + `←`/`→`. Navigate to 21-day forecast, radar map or daily table view using `Ctrl` + `Shift` + `L`, `Ctrl` + `Shift` + `R` or `Ctrl` + `Shift`` + `V`. Show a menu to navigate through favorite locations with `Ctrl` + `Shift` + `F`. Search for new locations in the menu.
 // @author       Øyvind Nilsen (on@ntnu.no)
 // @match        https://www.yr.no/*
@@ -14,20 +14,10 @@
 (function() {
     'use strict';
 
-    // variable initialization
-    let location_id = null;
-    let location_lon = null;
-    let location_lat = null;
-    let lang_code = 'en'; // Default language code
-
     // Language Code
+    let lang_code = 'en'; // Default language code
     if (typeof self.__LOCALE_CODE__ !== 'undefined' && self.__LOCALE_CODE__ !== null) {
         lang_code = self.__LOCALE_CODE__;
-    }
-
-    // Get Sunset and Sunrise
-    if (location_id !== undefined && location_id !== null) {
-        let loc_url = `https://www.yr.no/api/v0/locations/${location_id}?language=${lang_code}`;
     }
 
     // Translations
@@ -92,6 +82,72 @@
     // Variables to keep track of state
     let selectedIndex = 0;
     let isSearchFocused = false;
+    let isMenuOpen = false; // Track if the menu is currently open
+    let keysPressed = new Set(); // Track which keys are currently pressed
+
+    // Function to get locations from localStorage
+    /*
+    function getLocationsFromStorage() {
+        return {
+            favorites: JSON.parse(localStorage.getItem('favouritedLocations') || '[]'),
+            visited: JSON.parse(localStorage.getItem('visitedLocations') || '[]')
+        };
+    }
+    */
+
+    // Function to get locations from localStorage or API
+    async function getLocationsFromStorage() {
+        //console.log('[YR+] Getting locations from storage...');
+        
+        if (isUserLoggedIn()) {
+            //console.log('[YR+] User is logged in, attempting to fetch from API...');
+            try {
+                const loginState = localStorage.getItem('nrk-login-client-state');
+                const parsed = JSON.parse(loginState);
+                const accessToken = parsed.sessionData.accessToken;
+                
+                //console.log('[YR+] Making API request to userdata endpoint...');
+                const response = await fetch('https://www.yr.no/api/v0/userdata', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `${accessToken}`,
+                        'Referer': `https://www.yr.no/${lang_code}`
+                    }
+                });
+                
+                //console.log('[YR+] API response status:', response.status);
+                
+                if (response.ok) {
+                    const userData = await response.json();
+                    //console.log('[YR+] API userData received:', userData);
+                    
+                    const apiData = {
+                        favorites: userData.user?.locations?.favorites || [],
+                        visited: userData.user?.locations?.visited || []
+                    };
+                    
+                    //console.log('[YR+] Parsed API locations:', apiData);
+                    return apiData;
+                } else {
+                    console.warn('[YR+] API request failed with status:', response.status);
+                }
+            } catch (error) {
+                console.error('[YR+] Error fetching user data from API:', error);
+                // Fall back to localStorage if API fails
+            }
+        } else {
+            //console.log('[YR+] User not logged in, using localStorage...');
+        }
+        
+        // Fallback to localStorage for non-logged in users or if API fails
+        const localData = {
+            favorites: JSON.parse(localStorage.getItem('favouritedLocations') || '[]'),
+            visited: JSON.parse(localStorage.getItem('visitedLocations') || '[]')
+        };
+        
+        //console.log('[YR+] Using localStorage data:', localData);
+        return localData;
+    }
 
     // Function to create search input
     function createSearchInput() {
@@ -122,13 +178,12 @@
                 }
             } else if (event.key === 'ArrowDown') {
                 event.preventDefault();
-                event.stopPropagation(); // Stop the event from bubbling up to the global handler
+                event.stopPropagation();
                 const items = menu.querySelectorAll('li');
                 if (items.length > 0) {
                     isSearchFocused = false;
-                    selectedIndex = 0; // Start from first item (index 0)
+                    selectedIndex = 0;
                     highlightSelected();
-                    // Remove focus from search input
                     searchInput.blur();
                 }
             } else if (event.key === 'Escape') {
@@ -149,30 +204,90 @@
         searchContainer.appendChild(searchInput);
         return searchContainer;
     }
+    
+    // Function to check if user is logged in
+    function isUserLoggedIn() {
+        const loginState = localStorage.getItem('nrk-login-client-state');
+        if (!loginState) return false;
+        
+        try {
+            const parsed = JSON.parse(loginState);
+            // Check if token exists and hasn't expired
+            return parsed && parsed.sessionData && parsed.sessionData.accessToken && 
+                   parsed.expires > Date.now();
+        } catch (e) {
+            console.warn('Invalid login state format:', e);
+            return false;
+        }
+    }
 
     // Function to show the menu
     async function showMenu() {
-        // Get favourited locations from localStorage
-        let favourites = JSON.parse(localStorage.getItem('favouritedLocations') || '[]');
+        //console.log('[YR+] showMenu called, isMenuOpen:', isMenuOpen);
+        
+        // Prevent multiple calls if menu is already being shown or is open
+        if (isMenuOpen) return;
+        
+        isMenuOpen = true; // Set flag immediately to prevent duplicate calls
+        //console.log('[YR+] Menu opening...');
+        
+        const locationData = await getLocationsFromStorage();
+        //console.log('[YR+] Location data retrieved:', locationData);
+        
+        const { favorites, visited } = locationData;
 
-        // Get visited locations from localStorage
-        let visited = JSON.parse(localStorage.getItem('visitedLocations') || '[]');
-
-        // Combine the two arrays
-        let combinedLocations = favourites.concat(visited);
-
-        const locationPromises = combinedLocations.map(id => fetch(`https://www.yr.no/api/v0/locations/${id}?language=${lang_code}`).then(response => response.json()));
-        const locations = await Promise.all(locationPromises);
+        // Combine the two arrays and remove duplicates
+        let combinedLocations = [...new Set([...favorites, ...visited])];
+        //console.log('[YR+] Combined locations:', combinedLocations);
 
         // Create search input
         const searchContainer = createSearchInput();
 
         // Create locations list
         const locationsContainer = document.createElement('div');
-        locationsContainer.innerHTML = '<h3 class="header-3 heading--color-primary" style="margin-top: 0; margin-bottom: 10px;">' + translations['myPlaces'][lang_code] + '</h3><ul style="list-style: none; padding: 0; margin: 0;">' + locations.map((location, index) => `
-            <li data-id="${location.id}" data-index="${index}" style="padding: 8px 12px; cursor: pointer; border-radius: 4px;">
-                <span class="header-4 heading--color-primary weather-location-list-item__location-heading">${favourites.includes(location.id) ? '⭐' : '🕛'} ${location.name}</span>
-            </li>`).join('') + '</ul>';
+
+        if (combinedLocations.length > 0) {
+            //console.log('[YR+] Fetching location details for', combinedLocations.length, 'locations...');
+            try {
+                const locationPromises = combinedLocations.map(id => {
+                    //console.log('[YR+] Fetching details for location ID:', id);
+                    return fetch(`https://www.yr.no/api/v0/locations/${id}?language=${lang_code}`)
+                        .then(response => {
+                            //console.log('[YR+] Location API response for', id, ':', response.status);
+                            return response.json();
+                        })
+                        .catch(error => {
+                            console.error(`[YR+] Error fetching location ${id}:`, error);
+                            return null;
+                        });
+                });
+                
+                const locations = await Promise.all(locationPromises);
+                const validLocations = locations.filter(location => location !== null);
+                //console.log('[YR+] Valid locations retrieved:', validLocations);
+                
+                locationsContainer.innerHTML = '<h3 class="header-3 heading--color-primary" style="margin-top: 0; margin-bottom: 10px;">' + translations['myPlaces'][lang_code] + '</h3><ul style="list-style: none; padding: 0; margin: 0;">' + validLocations.map((location, index) => `
+                    <li data-id="${location.id}" data-index="${index}" style="padding: 8px 12px; cursor: pointer; border-radius: 4px;">
+                        <span class="header-4 heading--color-primary weather-location-list-item__location-heading">${favorites.includes(location.id) ? '⭐' : '🕛'} ${location.name}</span>
+                    </li>`).join('') + '</ul>';
+                
+                // Add click handlers for the list items
+                const items = locationsContainer.querySelectorAll('li');
+                items.forEach(item => {
+                    item.addEventListener('click', function() {
+                        const locationId = this.getAttribute('data-id');
+                        const tablePath = translations['daily-table'][lang_code];
+                        window.location.href = `https://www.yr.no/${lang_code}/${tablePath}/${locationId}/`;
+                    });
+                });
+            } catch (error) {
+                console.error('[YR+] Error fetching locations:', error);
+                locationsContainer.innerHTML = '<h3 class="header-3 heading--color-primary" style="margin-top: 0; margin-bottom: 10px;">' + translations['myPlaces'][lang_code] + '</h3><p>Error loading locations</p>';
+            }
+        } else {
+            //console.log('[YR+] No locations found');
+            locationsContainer.innerHTML = '<h3 class="header-3 heading--color-primary" style="margin-top: 0; margin-bottom: 10px;">' + translations['myPlaces'][lang_code] + '</h3><p>No saved locations</p>';
+        }
 
         // Clear menu and add components
         menu.innerHTML = '';
@@ -187,6 +302,8 @@
         searchInput.focus();
         isSearchFocused = true;
         selectedIndex = 0;
+        
+        //console.log('[YR+] Menu display completed');
     }
 
     // Function to hide the menu
@@ -194,6 +311,7 @@
         menu.style.opacity = '0';
         setTimeout(() => {
             menu.style.display = 'none';
+            isMenuOpen = false; // Reset flag when menu is fully hidden
         }, 400);
         isSearchFocused = false;
     }
@@ -201,7 +319,6 @@
     // Function to highlight the selected item
     function highlightSelected() {
         const items = menu.querySelectorAll('li');
-
         items.forEach((item, index) => {
             item.style.backgroundColor = index === selectedIndex ? 'lightblue' : 'white';
         });
@@ -232,13 +349,20 @@
 
     // Add event listener for keydown events
     document.addEventListener('keydown', function(event) {
+        // Add the key to the set of pressed keys
+        keysPressed.add(event.key);
+        
         if (event.ctrlKey) {
             if (event.key === 'ArrowLeft') {
                 navigateNavbar('left');
             } else if (event.key === 'ArrowRight') {
                 navigateNavbar('right');
             } else if (event.shiftKey && event.key === 'F') {
-                showMenu();
+                // Only trigger if this is the first time F is pressed while Ctrl+Shift are held
+                if (!keysPressed.has('F') || keysPressed.size === 3) {
+                    event.preventDefault(); // Prevent default behavior
+                    showMenu();
+                }
             } else if ((event.shiftKey) && (event.key === 'L' || event.key === 'R' || event.key === 'V')) {
                 // Get the current URL
                 const url = window.location.href;
@@ -247,10 +371,6 @@
                 var view = '';
 
                 if (match) {
-                    console.log("Language code:", lang_code);
-                    console.log("Path:", match[2]);
-                    console.log("ID:", match[3]);
-
                     if (event.key === 'L') {
                         view = translations['21-day-forecast'][lang_code];
                     } else if (event.key === 'R') {
@@ -293,15 +413,20 @@
                     highlightSelected();
                 } else if (event.key === 'Enter') {
                     event.preventDefault();
-                    const selectedItem = items[selectedIndex];
-                    const locationId = selectedItem.getAttribute('data-id');
-                    var tablePath = translations['daily-table'][lang_code];
-                    window.location.href = `https://www.yr.no/${lang_code}/${tablePath}/${locationId}/`;
+                    if (items.length > 0 && selectedIndex >= 0 && selectedIndex < items.length) {
+                        const selectedItem = items[selectedIndex];
+                        const locationId = selectedItem.getAttribute('data-id');
+                        var tablePath = translations['daily-table'][lang_code];
+                        window.location.href = `https://www.yr.no/${lang_code}/${tablePath}/${locationId}/`;
+                    }
                 }
             }
         }
     });
-
+    // Add event listener for keyup events to track when keys are released
+    document.addEventListener('keyup', function(event) {
+        keysPressed.delete(event.key);
+    });
     // Add event listener to close the menu when clicking outside of it
     document.addEventListener('click', function(event) {
         const menu = document.querySelector('#location-favo-menu');
@@ -310,3 +435,4 @@
         }
     });
 })();
+
